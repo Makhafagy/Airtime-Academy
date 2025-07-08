@@ -16,7 +16,7 @@
         <h3 class="company-heading">Contact</h3>
         <ul class="company-list">
           <li>Email: <a href="mailto:info@airtimeaviation.com" class="company-link">info@airtimeaviation.com</a></li>
-          <li>Phone: <a href="tel:+1234567890" class="company-link">(123) 456-7890</a></li>
+          <li>Phone: <a href="tel:+5623365331" class="company-link">(562) 336-5331</a></li>
           <li>Address: 123 Sky Lane, Flight City, CA</li>
         </ul>
       </div>

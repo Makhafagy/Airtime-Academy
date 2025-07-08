@@ -109,7 +109,7 @@ watch(
   () => props.type,
   newType => {
     form.type = newType
-    form.duration = newType === 'Rental' ? 60 : null
+    form.duration = 60
   }
 )
 
@@ -142,7 +142,18 @@ const submitForm = async () => {
   }
 
   try {
-    const res = await axios.post('http://localhost:3001/api/booking', payload)
+    const datetimeString = `${form.preferredDate}T${form.preferredTime}`
+
+    const payload = {
+      name: form.name,
+      email: form.email,
+      type: form.type,
+      preferredTime: new Date(datetimeString).toISOString(),
+      duration: form.duration,
+      notes: form.notes,
+    }
+
+    const res = await axios.post('http://localhost:3000/api/booking', payload)
     alert(res.data.message)
 
     Object.assign(form, {

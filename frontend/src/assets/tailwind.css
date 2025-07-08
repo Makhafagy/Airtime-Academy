@@ -177,6 +177,22 @@
   .mobile-nav-link {
     @apply py-2 text-gray-800 font-semibold hover:text-sky-600 transition;
   }
+
+  @keyframes highlight-fade {
+    0% {
+      border-color: theme('colors.blue.500');
+      box-shadow: 0 0 10px theme('colors.blue.500');
+    }
+    100% {
+      border-color: transparent;
+      box-shadow: none;
+    }
+  }
+
+  .highlight-border {
+    @apply border-4 rounded-md;
+    animation: highlight-fade 1.5s ease forwards;
+  }
 }
 
 @layer utilities {
