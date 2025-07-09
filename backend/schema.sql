@@ -20,6 +20,8 @@ CREATE TABLE booking_responses (
   responded_at TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP
 );
 CREATE INDEX idx_booking_time_type ON bookings(type, preferred_time);
+
+/* Test dumm data
 INSERT INTO bookings (
     name,
     email,
@@ -37,4 +39,4 @@ VALUES (
     60,
     'Wants to train on crosswinds',
     'Pending'
-  );
+  ); */

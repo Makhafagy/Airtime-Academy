@@ -1,43 +1,32 @@
 <template>
   <!-- Hero Container -->
-  <section class="hero-container pt-24">
-    <div class="hero-bg-image absolute inset-0 z-0"></div>
-
-    <!-- Gradient Fade Layer -->
+  <section class="hero-container">
+    <div class="hero-bg-image"></div>
     <div class="hero-fade-bottom"></div>
 
-    <div class="hero-text z-10">
+    <div class="hero-text">
       <h1 class="hero-title">Take Flight with Us</h1>
       <p class="hero-subtitle">Become a skilled pilot — book your flight instruction or rental today.</p>
       <button @click="scrollToSection('booking')" class="hero-button">Get Started</button>
     </div>
   </section>
 
+  <!-- Page Content -->
   <div class="page-container">
-    <!-- Booking Container -->
-    <section id="booking" class="booking-container">
-      <div class="booking-card">
-        <h2 class="booking-card-title">Flight Instruction</h2>
-        <p class="booking-card-desc">Book your flight instruction session. Requests require instructor approval.</p>
-        <button @click="openModal('Instruction')" class="booking-button">Book Now</button>
-      </div>
-
-      <div class="booking-card">
-        <h2 class="booking-card-title">Flight Rentals</h2>
-        <p class="booking-card-desc">Book your flight rental time. Choose your preferred time.</p>
-        <button @click="openModal('Rental')" class="booking-button">Book Now</button>
-      </div>
-    </section>
+    <Booking @open-modal="openModal" />
 
     <!-- Modal -->
     <BookingModal :show="modalOpen" :type="bookingType" @update:show="modalOpen = $event" />
 
-    <!-- Contact Container -->
-    <section id="contact" class="contact-container">
+    <!-- Contact Section -->
+    <section id="contact">
       <Contact />
     </section>
-
-    <!-- Company Container -->
+    <!-- Spacer to separate from company section -->
+    <div class="company-spacer"></div>
+  </div>
+  <!-- Company Info Section -->
+  <div class="company-border-wrapper">
     <section id="company" class="company-container">
       <CompanyInfo />
     </section>
@@ -46,6 +35,7 @@
 
 <script setup>
 import { ref } from 'vue'
+import Booking from '../components/Booking.vue'
 import BookingModal from '../components/BookingModal.vue'
 import Contact from '../components/Contact.vue'
 import CompanyInfo from '../components/CompanyInfo.vue'
@@ -61,7 +51,7 @@ function openModal(type) {
 const scrollToSection = id => {
   const el = document.getElementById(id)
   if (el) {
-    const yOffset = -64
+    const yOffset = -128
     const y = el.getBoundingClientRect().top + window.pageYOffset + yOffset
     window.scrollTo({ top: y, behavior: 'smooth' })
 

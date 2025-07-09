@@ -153,7 +153,7 @@ const submitForm = async () => {
       notes: form.notes,
     }
 
-    const res = await axios.post('http://localhost:3000/api/booking', payload)
+    const res = await axios.post('http://localhost:3001/api/booking', payload)
     alert(res.data.message)
 
     Object.assign(form, {

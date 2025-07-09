@@ -23,9 +23,9 @@
     <!-- Right: Contact Info -->
     <div class="contact-info-box">
       <h3 class="company-heading">Visit Us</h3>
-      <p class="text-sm text-gray-700 mb-4">
-        123 Aviation Lane<br />
-        Skyville, CA 90210<br />
+      <p class="company-list mb-4">
+        123 Mohamed Lane,<br />
+        911 City, CA 90210<br />
         United States
       </p>
 

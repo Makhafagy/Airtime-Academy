@@ -7,7 +7,7 @@ const pool = require('./db')
 const app = express()
 app.use(cors())
 app.use(express.json())
-app.use('/api/booking', bookingRoutes)
+app.use('/api/bookings', bookingRoutes)
 
 // ✅ Test route for DB connection
 app.get('/api/test-db', async (req, res) => {
