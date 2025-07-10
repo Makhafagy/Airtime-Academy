@@ -113,41 +113,51 @@
 </template>
 
 <script setup>
-import { ref, watch, onMounted, onUnmounted } from 'vue'
+import { ref, watch, onMounted } from 'vue'
 import api from '../api'
 import { debounce } from 'lodash'
 import StatusUpdater from './StatusUpdater.vue'
+import { useUserStore } from '../stores/userStore'
+
+const userStore = useUserStore()
 
 const bookings = ref([])
 const filterStatus = ref('')
 const filterType = ref('')
-
 const showConfirm = ref(false)
 const confirmMessage = ref('')
 const showToast = ref(false)
 const toastMessage = ref('')
-
 const pendingStatusUpdate = ref({ id: null, status: null })
-
-// Dark mode reactive state
 const isDark = ref(false)
-console.log(isDark)
+
 const fetchBookings = async () => {
   try {
-    const res = await api.get('/bookings/all', { params: { status: filterStatus.value, type: filterType.value } })
+    const res = await api.get('/bookings/all', {
+      params: {
+        status: filterStatus.value,
+        type: filterType.value,
+      },
+    })
     bookings.value = res.data
   } catch (err) {
+    console.error('Failed to load bookings', err)
     alert('Failed to load bookings')
-    console.error(err)
   }
 }
 
 const debouncedFetchBookings = debounce(fetchBookings, 300)
 
+watch([filterStatus, filterType], () => {
+  debouncedFetchBookings()
+})
+
 watch(
-  [filterStatus, filterType],
-  () => {
-    debouncedFetchBookings()
+  () => userStore.user, // watch the user object
+  newUser => {
+    if (newUser) {
+      fetchBookings()
+    }
   },
   { immediate: true }
 )
@@ -161,7 +171,9 @@ function openConfirm(id, status) {
 async function onConfirm() {
   showConfirm.value = false
   try {
-    await api.patch(`/bookings/${pendingStatusUpdate.value.id}`, { status: pendingStatusUpdate.value.status })
+    await api.patch(`/bookings/${pendingStatusUpdate.value.id}`, {
+      status: pendingStatusUpdate.value.status,
+    })
     toastMessage.value = 'Booking updated successfully'
     showToast.value = true
     fetchBookings()
@@ -176,19 +188,14 @@ function onCancel() {
   showConfirm.value = false
 }
 
-// Detect dark mode by watching the class on <html>
 onMounted(() => {
-  // Initial check
   isDark.value = document.documentElement.classList.contains('dark')
-
-  // Set up MutationObserver to track changes to <html> class
   const observer = new MutationObserver(() => {
     isDark.value = document.documentElement.classList.contains('dark')
   })
-  observer.observe(document.documentElement, { attributes: true, attributeFilter: ['class'] })
-
-  onUnmounted(() => {
-    observer.disconnect()
+  observer.observe(document.documentElement, {
+    attributes: true,
+    attributeFilter: ['class'],
   })
 })
 </script>

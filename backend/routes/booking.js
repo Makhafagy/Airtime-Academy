@@ -1,73 +1,87 @@
 const router = require('express').Router()
 const pool = require('../db')
 const nodemailer = require('nodemailer')
+const { requireAuth, requireAdmin } = require('../middleware/auth.js')
 
-router.post('/', async (req, res) => {
-  const { name, email, type, preferredTime, duration, notes } = req.body
+router.use(requireAuth)
+
+// Create reusable transporter object outside route handlers
+const transporter = nodemailer.createTransport({
+  service: 'gmail',
+  auth: {
+    user: process.env.EMAIL_USER,
+    pass: process.env.EMAIL_PASS,
+  },
+})
+
+// POST /api/bookings - create a new booking
+router.post('/', requireAuth, async (req, res) => {
+  const { firstName, lastName, type, preferredTime, duration, notes } = req.body
+  const email = req.user.email // ✅ Enforce server-side email
+
+  if (!firstName || !lastName || !email || !type || !preferredTime || !duration) {
+    return res.status(400).json({ error: 'Missing required booking fields' })
+  }
+
   const start = new Date(preferredTime)
   const end = new Date(start.getTime() + duration * 60000)
 
   try {
-    // Conflict check only for Rental (not Instruction)
     if (type === 'Rental') {
-      const conflict = await pool.query(
-        `SELECT * FROM bookings
-         WHERE type = 'Rental'
-         AND preferred_time < $1
-         AND (preferred_time + (duration_minutes || ' minutes')::interval) > $2
-         AND status IN ('Pending', 'Approved', 'Confirmed')`,
-        [end.toISOString(), start.toISOString()]
-      )
-
-      if (conflict.rows.length > 0) {
+      const conflictQuery = `
+        SELECT 1 FROM bookings
+        WHERE type = 'Rental'
+          AND status IN ('Pending', 'Approved', 'Confirmed')
+          AND preferred_time < $1
+          AND (preferred_time + (duration_minutes || ' minutes')::interval) > $2
+        LIMIT 1
+      `
+      const conflictResult = await pool.query(conflictQuery, [end.toISOString(), start.toISOString()])
+      if (conflictResult.rowCount > 0) {
         return res.status(409).json({ error: 'Time slot conflict detected for rental.' })
       }
     }
 
-    // Default status based on booking type
     const status = type === 'Instruction' ? 'Pending' : 'Confirmed'
 
-    await pool.query(
-      `INSERT INTO bookings (name, email, type, preferred_time, duration_minutes, notes, status)
-       VALUES ($1, $2, $3, $4, $5, $6, $7)`,
-      [name, email, type, preferredTime, duration, notes, status]
-    )
-
-    // Email notification for all bookings
-    const transporter = nodemailer.createTransport({
-      service: 'gmail',
-      auth: {
-        user: process.env.EMAIL_USER,
-        pass: process.env.EMAIL_PASS,
-      },
-    })
+    const insertQuery = `
+      INSERT INTO bookings (first_name, last_name, email, type, preferred_time, duration_minutes, notes, status)
+      VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
+      RETURNING *
+    `
+    const insertValues = [firstName, lastName, email, type, start.toISOString(), duration, notes || null, status]
+    const insertResult = await pool.query(insertQuery, insertValues)
+    const newBooking = insertResult.rows[0]
 
     await transporter.sendMail({
       from: process.env.EMAIL_USER,
       to: process.env.INSTRUCTOR_EMAIL,
       subject: `New ${type} Booking ${type === 'Instruction' ? 'Request' : 'Confirmation'}`,
-      text: `Name: ${name}
+      text: `First Name: ${firstName}
+Last Name: ${lastName}
 Email: ${email}
 Type: ${type}
-Preferred Time: ${preferredTime}
+Preferred Time: ${start.toLocaleString()}
 Duration: ${duration} minutes
 Notes: ${notes || 'None'}
 Status: ${status}`,
     })
 
-    res.status(200).json({ message: `Your ${type.toLowerCase()} booking ${type === 'Instruction' ? 'request' : 'has been confirmed'}!` })
+    res.status(201).json({
+      message: `Your ${type.toLowerCase()} booking ${status === 'Pending' ? 'request' : 'has been confirmed'}!`,
+      booking: newBooking,
+    })
   } catch (err) {
-    console.error(err)
+    console.error('Error creating booking:', err)
     res.status(500).json({ error: 'Internal server error' })
   }
 })
 
-// GET /api/bookings?status=Pending&type=Instruction
-router.get('/all', async (req, res) => {
+router.get('/all', requireAuth, requireAdmin, async (req, res) => {
   const { status, type } = req.query
   let query = 'SELECT * FROM bookings WHERE 1=1'
   const params = []
-  console.log('test')
+
   if (status) {
     params.push(status)
     query += ` AND status = $${params.length}`
@@ -82,67 +96,53 @@ router.get('/all', async (req, res) => {
     const result = await pool.query(query, params)
     res.json(result.rows)
   } catch (err) {
-    console.error(err)
-    res.status(500).json({ error: 'Failed to get bookings' })
+    console.error('❌ Error fetching bookings:', err)
+    res.status(500).json({ error: err.message || 'Failed to get bookings' })
   }
 })
 
-// PATCH /api/bookings/:id to update status
-router.patch('/:id', async (req, res) => {
+// PATCH /api/bookings/:id - update booking status
+router.patch('/:id', requireAdmin, async (req, res) => {
   const { id } = req.params
   const { status } = req.body
-
   const validStatuses = ['Pending', 'Approved', 'Rejected', 'Confirmed', 'Cancelled']
 
   if (!validStatuses.includes(status)) {
     return res.status(400).json({ error: 'Invalid status value' })
   }
 
-  const parsedId = parseInt(id)
-  if (isNaN(parsedId)) {
+  const bookingId = parseInt(id)
+  if (isNaN(bookingId)) {
     return res.status(400).json({ error: 'Invalid booking ID' })
   }
 
   try {
-    // Update booking status and get updated booking info
-    const result = await pool.query('UPDATE bookings SET status = $1 WHERE id = $2 RETURNING *', [status, parsedId])
+    const updateQuery = 'UPDATE bookings SET status = $1 WHERE id = $2 RETURNING *'
+    const updateResult = await pool.query(updateQuery, [status, bookingId])
 
-    if (result.rowCount === 0) {
+    if (updateResult.rowCount === 0) {
       return res.status(404).json({ error: 'Booking not found' })
     }
 
-    const booking = result.rows[0]
+    const updatedBooking = updateResult.rows[0]
 
-    // Setup nodemailer transporter
-    const transporter = nodemailer.createTransport({
-      service: 'gmail',
-      auth: {
-        user: process.env.EMAIL_USER,
-        pass: process.env.EMAIL_PASS,
-      },
-    })
-
-    // Prepare email message
-    const mailOptions = {
+    // Notify user about status update
+    await transporter.sendMail({
       from: process.env.EMAIL_USER,
-      to: booking.email,
-      subject: `Your booking status has been updated to ${booking.status}`,
-      text: `Hello ${booking.name},
+      to: updatedBooking.email,
+      subject: `Your booking status has been updated to ${updatedBooking.status}`,
+      text: `Hello ${updatedBooking.first_name} ${updatedBooking.last_name},
 
-Your booking for ${booking.type} on ${new Date(booking.preferred_time).toLocaleString()} has been updated to "${booking.status}".
+Your booking for ${updatedBooking.type} on ${new Date(updatedBooking.preferred_time).toLocaleString()} has been updated to "${updatedBooking.status}".
 
 If you have any questions, please contact us.
 
 Thank you,
-Your Team`,
-    }
+Airtime Academy`,
+    })
 
-    // Send the email notification
-    await transporter.sendMail(mailOptions)
-
-    res.json({ message: 'Booking status updated and user notified', booking })
+    res.json({ message: 'Booking status updated and user notified', booking: updatedBooking })
   } catch (err) {
-    console.log('Attempting to update booking:', id, 'to status:', status)
     console.error('Error updating booking:', err)
     res.status(500).json({ error: 'Failed to update booking' })
   }

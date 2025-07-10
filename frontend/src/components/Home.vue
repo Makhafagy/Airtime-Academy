@@ -39,11 +39,18 @@ import Booking from '../components/Booking.vue'
 import BookingModal from '../components/BookingModal.vue'
 import Contact from '../components/Contact.vue'
 import CompanyInfo from '../components/CompanyInfo.vue'
+import { useUserStore } from '../stores/userStore.js'
+import router from '../router'
 
 const modalOpen = ref(false)
 const bookingType = ref(null)
+const userStore = useUserStore()
 
 function openModal(type) {
+  if (!userStore.isAuthenticated) {
+    router.push('/login')
+    return
+  }
   bookingType.value = type
   modalOpen.value = true
 }

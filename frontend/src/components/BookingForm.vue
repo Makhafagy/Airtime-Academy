@@ -13,8 +13,7 @@
       </div>
       <div>
         <label class="label-base">Email:</label>
-        <input v-model="form.email" type="email" class="input-base" required />
-        <p v-if="errors.email" class="text-red-600 text-sm mt-1">{{ errors.email }}</p>
+        <input v-model="form.email" type="email" class="input-base read-only-email" readonly />
       </div>
     </div>
 
@@ -72,8 +71,11 @@
 </template>
 
 <script setup>
-import { reactive, watch, ref, nextTick } from 'vue'
+import { reactive, watch, ref, nextTick, onMounted } from 'vue'
 import axios from 'axios'
+import { useUserStore } from '../stores/userStore'
+
+const userStore = useUserStore()
 
 const props = defineProps({
   type: {
@@ -82,27 +84,29 @@ const props = defineProps({
   },
 })
 
-const timeOptions = Array.from({ length: (24 * 60) / 15 }, (_, i) => {
-  const hours = String(Math.floor((i * 15) / 60)).padStart(2, '0')
-  const minutes = String((i * 15) % 60).padStart(2, '0')
-  return `${hours}:${minutes}`
-})
-
 const form = reactive({
   name: '',
   email: '',
-  type: props.type,
+  type: '',
   preferredDate: '',
   preferredTime: '',
   duration: 60,
   notes: '',
 })
 
+form.type = props.type
+
 const errors = reactive({
   name: '',
   email: '',
   preferredDate: '',
   preferredTime: '',
+})
+
+const timeOptions = Array.from({ length: (24 * 60) / 15 }, (_, i) => {
+  const hours = String(Math.floor((i * 15) / 60)).padStart(2, '0')
+  const minutes = String((i * 15) % 60).padStart(2, '0')
+  return `${hours}:${minutes}`
 })
 
 watch(
@@ -113,12 +117,18 @@ watch(
   }
 )
 
+onMounted(() => {
+  const user = userStore.user
+  if (user) {
+    form.name = `${user.first_name} ${user.last_name}`
+    form.email = user.email
+  }
+})
+
 const validateForm = () => {
   errors.name = form.name.trim() ? '' : 'Name is required.'
-  errors.email = /^\S+@\S+\.\S+$/.test(form.email) ? '' : 'Enter a valid email.'
   errors.preferredDate = form.preferredDate ? '' : 'Please select a date.'
   errors.preferredTime = form.preferredTime ? '' : 'Please select a time.'
-
   return !Object.values(errors).some(err => err)
 }
 
@@ -136,29 +146,22 @@ const submitForm = async () => {
 
   const preferredDateTime = new Date(`${form.preferredDate}T${form.preferredTime}`).toISOString()
 
-  const payload = {
-    ...form,
-    preferredTime: preferredDateTime,
-  }
-
   try {
-    const datetimeString = `${form.preferredDate}T${form.preferredTime}`
-
     const payload = {
-      name: form.name,
-      email: form.email,
+      firstName: form.name.split(' ')[0] || '',
+      lastName: form.name.split(' ').slice(1).join(' ') || '',
       type: form.type,
-      preferredTime: new Date(datetimeString).toISOString(),
+      preferredTime: preferredDateTime,
       duration: form.duration,
       notes: form.notes,
     }
 
-    const res = await axios.post('http://localhost:3001/api/booking', payload)
+    const res = await axios.post('/api/bookings', payload)
     alert(res.data.message)
 
     Object.assign(form, {
       name: '',
-      email: '',
+      email: userStore.user.email, // keep email filled
       type: props.type,
       preferredDate: '',
       preferredTime: '',

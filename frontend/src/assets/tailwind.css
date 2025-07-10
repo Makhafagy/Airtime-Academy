@@ -29,7 +29,7 @@
   }
 
   .form-container {
-    @apply max-w-2xl mx-auto px-6 sm:px-12 py-16;
+    @apply w-full mx-auto px-6 sm:px-12 py-16;
   }
 
   .contact-container {
@@ -68,6 +68,20 @@
 
   .dark .textarea-base {
     @apply border-gray-600 bg-gray-700 text-gray-200 focus:ring-sky-400;
+  }
+
+  .read-only-email {
+    @apply bg-gray-100 text-gray-600 cursor-not-allowed select-none;
+    @apply text-ellipsis overflow-hidden whitespace-nowrap;
+  }
+
+  .dark .read-only-email {
+    @apply bg-gray-800 text-gray-400;
+  }
+
+  .read-only-email:focus {
+    @apply ring-2 ring-red-500;
+    caret-color: red;
   }
 
   .select-base {
@@ -369,6 +383,36 @@
 
   .filter-select {
     @apply border border-gray-300 p-2 rounded bg-white shadow-sm text-sm focus:outline-none focus:ring-2 focus:ring-sky-500;
+  }
+
+  .auth-page-wrapper {
+    @apply flex items-center justify-center min-h-screen px-4 sm:px-6;
+    background: linear-gradient(to bottom right, #f1f5f9, #f9fafb); /* slate-gray softness */
+  }
+
+  .dark .auth-page-wrapper {
+    background: linear-gradient(to bottom right, #111827, #1f2937, #374151); /* Dark */
+  }
+
+  .auth-form {
+    @apply rounded-xl shadow-lg p-8 w-full max-w-md;
+    background-color: #ffffff; /* clean white */
+  }
+
+  .dark .auth-form {
+    @apply bg-gray-800; /* keep your preferred dark style */
+  }
+
+  .auth-title {
+    @apply text-3xl font-bold text-center text-sky-700 dark:text-sky-400 mb-6;
+  }
+
+  .auth-subtext {
+    @apply text-sm mt-4 text-center text-gray-600 dark:text-gray-300;
+  }
+
+  .auth-link {
+    @apply text-sky-700 dark:text-sky-400 hover:underline;
   }
 }
 

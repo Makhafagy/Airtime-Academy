@@ -4,7 +4,7 @@
       <transition name="scale-fade">
         <div
           :class="[
-            'rounded-xl p-6 max-w-md w-full shadow-2xl border transition-all duration-300 relative flex flex-col',
+            'rounded-xl max-w-md w-full shadow-2xl border transition-all duration-300 relative flex flex-col',
             isDark ? 'bg-gray-800 text-gray-100 border-gray-600' : 'bg-white text-gray-900 border-gray-200',
           ]"
           @click.stop
