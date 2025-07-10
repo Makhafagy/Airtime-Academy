@@ -53,10 +53,10 @@
             <!-- User Icon -->
             <svg
               xmlns="http://www.w3.org/2000/svg"
-              class="h-6 w-6 text-gray-700 dark:text-gray-200"
+              class="h-6 w-6 transition-colors duration-300"
               fill="none"
               viewBox="0 0 24 24"
-              stroke="currentColor"
+              :stroke="isDark ? 'white' : '#333'"
               stroke-width="2"
             >
               <path stroke-linecap="round" stroke-linejoin="round" d="M12 12c2.21 0 4-1.79 4-4s-1.79-4-4-4-4 1.79-4 4 1.79 4 4 4z" />
