@@ -1,4 +1,4 @@
-const pool = require('../db')
+const pool = require('../db/db')
 
 const findUserByEmail = async email => {
   const res = await pool.query('SELECT * FROM users WHERE email = $1', [email])

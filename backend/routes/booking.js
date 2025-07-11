@@ -1,5 +1,5 @@
 const router = require('express').Router()
-const pool = require('../db')
+const pool = require('../db/db')
 const nodemailer = require('nodemailer')
 const { requireAuth, requireAdmin } = require('../middleware/auth.js')
 
@@ -77,7 +77,7 @@ Status: ${status}`,
   }
 })
 
-router.get('/all', requireAuth, requireAdmin, async (req, res) => {
+router.get('/all', requireAdmin, async (req, res) => {
   const { status, type } = req.query
   let query = 'SELECT * FROM bookings WHERE 1=1'
   const params = []
@@ -145,6 +145,69 @@ Airtime Academy`,
   } catch (err) {
     console.error('Error updating booking:', err)
     res.status(500).json({ error: 'Failed to update booking' })
+  }
+})
+
+// GET /api/bookings/available-slots?date=YYYY-MM-DD&type=Rental
+router.get('/available-slots', requireAuth, async (req, res) => {
+  const { date, type } = req.query
+
+  if (!date || !type) {
+    return res.status(400).json({ error: 'Missing required query parameters: date and type' })
+  }
+
+  const openHour = 8
+  const closeHour = 20
+  const intervalMinutes = 15
+  const durationMinutes = parseInt(req.query.duration) || 60
+
+  const slots = []
+  const dayStart = new Date(`${date}T${String(openHour).padStart(2, '0')}:00:00`)
+  const dayEnd = new Date(`${date}T${String(closeHour).padStart(2, '0')}:00:00`)
+
+  for (let t = new Date(dayStart); t < dayEnd; t.setMinutes(t.getMinutes() + intervalMinutes)) {
+    slots.push(new Date(t).toISOString())
+  }
+
+  try {
+    const startOfDay = new Date(`${date}T00:00:00`)
+    const endOfDay = new Date(`${date}T23:59:59`)
+
+    const conflictQuery = `
+      SELECT preferred_time, duration_minutes
+      FROM bookings
+      WHERE type = $1
+        AND preferred_time BETWEEN $2 AND $3
+        AND status IN ('Pending', 'Approved', 'Confirmed')
+    `
+    const conflictResult = await pool.query(conflictQuery, [type, startOfDay, endOfDay])
+    const bookings = conflictResult.rows
+
+    // Filter out conflicting slots
+    const availableSlots = slots.filter(slotIso => {
+      const slotStart = new Date(slotIso)
+      const slotEnd = new Date(slotStart.getTime() + durationMinutes * 60000)
+
+      return bookings.every(b => {
+        const bookingStart = new Date(b.preferred_time)
+        const bookingEnd = new Date(bookingStart.getTime() + b.duration_minutes * 60000)
+
+        return slotEnd <= bookingStart || slotStart >= bookingEnd
+      })
+    })
+
+    const formatted = availableSlots.map(d => {
+      const date = new Date(d)
+      return {
+        label: `${String(date.getHours()).padStart(2, '0')}:${String(date.getMinutes()).padStart(2, '0')}`,
+        iso: date.toISOString(),
+      }
+    })
+
+    res.json(formatted)
+  } catch (err) {
+    console.error('Error fetching available slots:', err)
+    res.status(500).json({ error: 'Failed to fetch available time slots' })
   }
 })
 

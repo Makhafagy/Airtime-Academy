@@ -6,12 +6,21 @@ const { requireAuth } = require('../middleware/auth.js')
 
 const router = express.Router()
 const JWT_SECRET = process.env.JWT_SECRET
+const nodemailer = require('nodemailer')
 
 const COOKIE_OPTIONS = {
   httpOnly: true,
   secure: process.env.NODE_ENV === 'production', // Enable in production
   sameSite: 'strict',
 }
+
+const transporter = nodemailer.createTransport({
+  service: 'gmail',
+  auth: {
+    user: process.env.EMAIL_USER,
+    pass: process.env.EMAIL_PASS,
+  },
+})
 
 // Register
 router.post('/register', async (req, res) => {
@@ -30,6 +39,21 @@ router.post('/register', async (req, res) => {
 
     const token = jwt.sign({ id: user.id, role: user.role }, JWT_SECRET, { expiresIn: '1h' })
     res.cookie('token', token, COOKIE_OPTIONS)
+    const mailOptions = {
+      from: process.env.EMAIL_USER,
+      to: email,
+      subject: 'Welcome to Airtime!',
+      html: `
+    <h2>Hi ${firstName},</h2>
+    <p>Your account has been successfully created.</p>
+    <p>You can now login and start using the platform.</p>
+    <br>
+    <p>Thanks,<br/>The Airtime Team</p>
+  `,
+    }
+
+    await transporter.sendMail(mailOptions)
+
     res.json({ user })
   } catch (err) {
     console.error(err)
