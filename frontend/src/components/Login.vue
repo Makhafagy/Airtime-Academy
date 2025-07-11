@@ -3,6 +3,9 @@
     <div class="auth-form">
       <h2 class="auth-title">Login</h2>
       <form @submit.prevent="login" class="space-y-4">
+        <p v-if="errorMessage" class="text-sm text-red-600 dark:text-red-400 text-center">
+          {{ errorMessage }}
+        </p>
         <input v-model="email" type="email" placeholder="Email" class="input-base" />
         <input v-model="password" type="password" placeholder="Password" class="input-base" />
         <button type="submit" class="button-primary">Login</button>
@@ -26,10 +29,17 @@ const userStore = useUserStore()
 
 const email = ref('')
 const password = ref('')
+const errorMessage = ref('')
 
 const login = async () => {
+  errorMessage.value = ''
+
+  if (!email.value || !password.value) {
+    errorMessage.value = 'Please enter both email and password.'
+    return
+  }
+
   try {
-    // Step 1: Login
     await api.post(
       '/auth/login',
       {
@@ -37,23 +47,33 @@ const login = async () => {
         password: password.value,
       },
       {
-        withCredentials: true, // Ensure cookies are sent
+        withCredentials: true,
       }
     )
 
-    // Step 2: Get fresh user data from the server
     const meRes = await api.get('/auth/me', {
       withCredentials: true,
     })
 
-    // Step 3: Update user store
     userStore.setUser(meRes.data)
-
-    // Step 4: Navigate to homepage
     router.push('/')
   } catch (err) {
-    alert('Login failed')
-    console.error(err)
+    if (err.response) {
+      const status = err.response.status
+      const data = err.response.data
+
+      if (status === 401) {
+        errorMessage.value = 'Invalid email or password.'
+      } else if (status === 400) {
+        errorMessage.value = data.message || 'Invalid input.'
+      } else {
+        errorMessage.value = 'Something went wrong. Please try again.'
+      }
+    } else {
+      errorMessage.value = 'Network error. Please check your connection.'
+    }
+
+    console.error('Login error:', err)
   }
 }
 </script>

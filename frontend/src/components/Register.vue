@@ -4,6 +4,14 @@
       <h2 class="auth-title">Create Account</h2>
 
       <form @submit.prevent="register" class="space-y-4">
+        <div v-if="errorMessage" class="text-red-600 dark:text-red-400 mb-4 text-center">
+          {{ errorMessage }}
+        </div>
+
+        <div v-if="successMessage" class="text-green-600 dark:text-green-400 mb-4 text-center">
+          {{ successMessage }}
+        </div>
+
         <input v-model="firstName" type="text" placeholder="First Name" class="input-base" required />
         <p v-if="firstName && !isFirstNameValid" class="text-sm text-red-600 dark:text-red-400">First name must contain only letters.</p>
 
@@ -33,7 +41,7 @@
 import { ref, computed } from 'vue'
 import api from '../api.js'
 import { useRouter } from 'vue-router'
-import { useUserStore } from '../stores/userStore.js' // Import your global user store
+import { useUserStore } from '../stores/userStore.js'
 
 const router = useRouter()
 const userStore = useUserStore()
@@ -42,6 +50,8 @@ const firstName = ref('')
 const lastName = ref('')
 const email = ref('')
 const password = ref('')
+const successMessage = ref('')
+const errorMessage = ref('')
 
 // Validation regexes
 const nameRegex = /^[A-Za-z]+$/
@@ -59,8 +69,11 @@ const isFormValid = computed(() => {
 })
 
 const register = async () => {
+  errorMessage.value = ''
+  successMessage.value = ''
+
   if (!isFormValid.value) {
-    alert('Please complete all fields correctly.')
+    errorMessage.value = 'Please complete all fields correctly.'
     return
   }
 
@@ -73,16 +86,23 @@ const register = async () => {
     })
 
     if (!res.data.user) {
-      alert('Registration succeeded but no user info returned.')
+      errorMessage.value = 'Registration succeeded but no user info returned.'
       return
     }
 
-    // Just set user info; token is in HTTP-only cookie, no need to store it manually
     userStore.setUser(res.data.user)
 
-    router.push('/')
+    successMessage.value = 'Account created successfully! Redirecting...'
+
+    setTimeout(() => {
+      router.push('/')
+    }, 1500)
   } catch (err) {
-    alert('Registration failed.')
+    if (err.response && err.response.data && err.response.data.message) {
+      errorMessage.value = err.response.data.message
+    } else {
+      errorMessage.value = 'Registration failed. Please try again.'
+    }
     console.error(err)
   }
 }

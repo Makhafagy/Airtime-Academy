@@ -17,7 +17,7 @@
       </div>
     </div>
 
-    <!-- Row 2: Type & Duration -->
+    <!-- Row 2: Type & Dropoff Time -->
     <div class="grid grid-cols-1 sm:grid-cols-2 gap-6 mt-4">
       <div>
         <label class="label-base">Type:</label>
@@ -26,15 +26,17 @@
           <option value="Instruction">Instruction</option>
         </select>
       </div>
-      <div v-if="form.type === 'Rental'">
-        <label class="label-base">Duration (hours):</label>
-        <select v-model.number="form.duration" class="select-base" required>
-          <option :value="60">1 hour</option>
-          <option :value="90">1.5 hours</option>
-          <option :value="120">2 hours</option>
-          <option :value="150">2.5 hours</option>
-          <option :value="180">3 hours</option>
+      <div v-if="form.preferredDate && form.preferredTime">
+        <label class="label-base">Dropoff Time:</label>
+        <select v-model="form.dropoffTime" class="select-base" required>
+          <option disabled value="">Select time</option>
+          <option v-for="time in dropoffOptions" :key="time" :value="time">
+            {{ time }}
+          </option>
         </select>
+        <p v-if="errors.dropoffTime" class="text-red-600 text-sm mt-1">
+          {{ errors.dropoffTime }}
+        </p>
       </div>
     </div>
 
@@ -42,16 +44,14 @@
     <div class="grid grid-cols-1 sm:grid-cols-2 gap-6 mt-4">
       <div>
         <label class="label-base">Preferred Date:</label>
-        <input v-model="form.preferredDate" type="date" class="input-base" required />
+        <input v-model="form.preferredDate" type="date" class="input-base" :min="minDate" required />
         <p v-if="errors.preferredDate" class="text-red-600 text-sm mt-1">{{ errors.preferredDate }}</p>
       </div>
       <div v-if="form.preferredDate">
-        <label class="label-base">Preferred Time:</label>
+        <label class="label-base">Pickup Time:</label>
         <select v-model="form.preferredTime" class="select-base" required>
           <option disabled value="">Select time</option>
-          <option v-for="time in timeOptions" :key="time" :value="time">
-            {{ time }}
-          </option>
+          <option v-for="time in timeOptions" :key="time" :value="time">{{ time }}</option>
         </select>
         <p v-if="errors.preferredTime" class="text-red-600 text-sm mt-1">{{ errors.preferredTime }}</p>
       </div>
@@ -72,7 +72,7 @@
 
 <script setup>
 import { reactive, watch, ref, nextTick, onMounted } from 'vue'
-import axios from 'axios'
+import api from '../api.js'
 import { useUserStore } from '../stores/userStore'
 
 const userStore = useUserStore()
@@ -90,7 +90,7 @@ const form = reactive({
   type: '',
   preferredDate: '',
   preferredTime: '',
-  duration: 60,
+  dropoffTime: '',
   notes: '',
 })
 
@@ -101,12 +101,7 @@ const errors = reactive({
   email: '',
   preferredDate: '',
   preferredTime: '',
-})
-
-const timeOptions = Array.from({ length: (24 * 60) / 15 }, (_, i) => {
-  const hours = String(Math.floor((i * 15) / 60)).padStart(2, '0')
-  const minutes = String((i * 15) % 60).padStart(2, '0')
-  return `${hours}:${minutes}`
+  dropoffTime: '',
 })
 
 watch(
@@ -114,8 +109,56 @@ watch(
   newType => {
     form.type = newType
     form.duration = 60
+    if (form.preferredDate) {
+      const event = new Event('change')
+      document.querySelector('input[type="date"]')?.dispatchEvent(event)
+    }
   }
 )
+
+const minDate = ref('')
+const getTomorrowDateString = () => {
+  const tomorrow = new Date()
+  tomorrow.setDate(tomorrow.getDate() + 1)
+  return tomorrow.toISOString().split('T')[0]
+}
+
+minDate.value = getTomorrowDateString()
+
+const timeOptions = ref([])
+
+watch(
+  () => form.preferredDate,
+  async newDate => {
+    if (!newDate || !form.type) return
+
+    try {
+      const res = await api.get(`/bookings/available-slots`, {
+        params: { date: newDate, type: form.type },
+      })
+      timeOptions.value = res.data
+    } catch (err) {
+      timeOptions.value = []
+      console.error('Failed to load available slots:', err)
+    }
+  }
+)
+
+const dropoffOptions = ref([])
+
+watch([() => form.preferredDate, () => form.preferredTime], () => {
+  if (!form.preferredDate || !form.preferredTime) return
+
+  const baseTime = new Date(`${form.preferredDate}T${form.preferredTime}`)
+  const options = []
+
+  for (let mins = 30; mins <= 180; mins += 30) {
+    const dropoff = new Date(baseTime.getTime() + mins * 60000)
+    options.push(dropoff.toTimeString().slice(0, 5)) // "HH:MM"
+  }
+
+  dropoffOptions.value = options
+})
 
 onMounted(() => {
   const user = userStore.user
@@ -128,7 +171,8 @@ onMounted(() => {
 const validateForm = () => {
   errors.name = form.name.trim() ? '' : 'Name is required.'
   errors.preferredDate = form.preferredDate ? '' : 'Please select a date.'
-  errors.preferredTime = form.preferredTime ? '' : 'Please select a time.'
+  errors.preferredTime = form.preferredTime ? '' : 'Please select a pickup time.'
+  errors.dropoffTime = form.dropoffTime ? '' : 'Please select a dropoff time.'
   return !Object.values(errors).some(err => err)
 }
 
@@ -144,28 +188,29 @@ const submitForm = async () => {
     return
   }
 
-  const preferredDateTime = new Date(`${form.preferredDate}T${form.preferredTime}`).toISOString()
+  const pickup = new Date(`${form.preferredDate}T${form.preferredTime}`).toISOString()
+  const dropoff = new Date(`${form.preferredDate}T${form.dropoffTime}`).toISOString()
 
   try {
     const payload = {
       firstName: form.name.split(' ')[0] || '',
       lastName: form.name.split(' ').slice(1).join(' ') || '',
       type: form.type,
-      preferredTime: preferredDateTime,
-      duration: form.duration,
+      pickupTime: pickup,
+      dropoffTime: dropoff,
       notes: form.notes,
     }
 
-    const res = await axios.post('/api/bookings', payload)
+    const res = await api.post('/bookings', payload)
     alert(res.data.message)
 
     Object.assign(form, {
       name: '',
-      email: userStore.user.email, // keep email filled
+      email: userStore.user.email,
       type: props.type,
       preferredDate: '',
       preferredTime: '',
-      duration: 60,
+      dropoffTime: '',
       notes: '',
     })
   } catch (err) {
